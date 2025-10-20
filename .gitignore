@@ -1,0 +1,7 @@
+/node_modules
+/test_workflow
+/workflow_output
+
+.DS_Store
+
+/constants/downloadList.ts

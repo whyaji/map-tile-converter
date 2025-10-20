@@ -1,0 +1,20 @@
+# Ignore large directories to prevent "too many open files" error
+raw/
+temp/
+result/
+normalize/
+assets/maps/chunks/
+assets/maps/downloads/
+assets/maps/output/
+
+# Ignore generated files
+*.zip
+*.bin
+*_chunks_metadata.json
+*_reconstructed.zip
+
+# Ignore node_modules
+node_modules/
+
+# Ignore logs
+*.log
