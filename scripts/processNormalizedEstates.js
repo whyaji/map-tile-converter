@@ -9,7 +9,7 @@ const {
 
 /**
  * Process normalized estates and create chunks
- * Works with the standardized x-y.png format
+ * Works with the standardized x-y.webp format
  */
 async function processNormalizedEstates(
   estateName,
@@ -173,7 +173,7 @@ async function processNormalizedEstates(
       let tileCount = 0;
       const files = await fs.readdir(targetZoomDir);
       for (const file of files) {
-        if (file.endsWith(".png")) {
+        if (file.endsWith(".webp")) {
           tileCount++;
         }
       }
@@ -213,7 +213,7 @@ async function processNormalizedEstates(
       const files = await fs.readdir(zoomDir);
 
       for (const file of files) {
-        if (file.endsWith(".png")) {
+        if (file.endsWith(".webp")) {
           const filePath = path.join(zoomDir, file);
           const stats = await fs.stat(filePath);
           totalTiles++;
@@ -433,7 +433,7 @@ if (require.main === module) {
     );
     console.log("");
     console.log(
-      "Note: This script works with normalized estate structures (x-y.png format)"
+      "Note: This script works with normalized estate structures (x-y.webp format)"
     );
     process.exit(1);
   }

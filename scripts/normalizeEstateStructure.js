@@ -1,9 +1,11 @@
 const path = require("path");
 const fs = require("fs-extra");
+const sharp = require("sharp");
 
 /**
- * Normalizes estate folder structures to use consistent x-y.png format
+ * Normalizes estate folder structures to use consistent x-y.webp format
  * Handles both BDE (flat) and NBE (nested) structures
+ * Converts PNG images to WebP lossless format during normalization
  */
 async function normalizeEstateStructure(estateDir, outputDir, estateName) {
   try {
@@ -146,6 +148,7 @@ async function normalizeEstateStructure(estateDir, outputDir, estateName) {
 /**
  * Process tiles in a zoom level directory
  * Handles both flat (BDE) and nested (NBE) structures
+ * Converts PNG files to WebP lossless format
  */
 async function processZoomLevel(sourceDir, targetDir, zoom) {
   let tileCount = 0;
@@ -162,6 +165,7 @@ async function processZoomLevel(sourceDir, targetDir, zoom) {
 
 /**
  * Recursively process directory and copy files with normalized names
+ * Converts PNG files to WebP lossless format
  */
 async function processDirectory(sourceDir, targetDir, zoom, statsCallback) {
   const files = await fs.readdir(sourceDir);
@@ -176,50 +180,64 @@ async function processDirectory(sourceDir, targetDir, zoom, statsCallback) {
       // Recursively process subdirectory
       await processDirectory(sourcePath, targetDir, zoom, statsCallback);
     } else if (file.endsWith(".png")) {
-      // Process PNG file
+      // Process PNG file and convert to WebP
       const normalizedFileName = await normalizeTileFileName(
         file,
         sourcePath,
         zoom
       );
-      const targetPath = path.join(targetDir, normalizedFileName);
+      // Change extension from .png to .webp
+      const webpFileName = normalizedFileName.replace(/\.png$/, ".webp");
+      const targetPath = path.join(targetDir, webpFileName);
 
-      // Copy file to target directory
-      await fs.copy(sourcePath, targetPath);
+      try {
+        // Convert PNG to WebP lossless
+        await sharp(sourcePath)
+          .webp({ quality: 85, effort: 6, smartSubsample: true })
+          .toFile(targetPath);
 
-      // Update stats
-      statsCallback(1, stats.size);
+        // Get the size of the converted file
+        const convertedStats = await fs.stat(targetPath);
+
+        // Update stats
+        statsCallback(1, convertedStats.size);
+      } catch (error) {
+        console.error(`❌ Error converting ${file} to WebP:`, error);
+        // Fallback: copy original PNG file
+        await fs.copy(sourcePath, targetPath);
+        statsCallback(1, stats.size);
+      }
     }
   }
 }
 
 /**
- * Normalize tile file name to x-y.png format
+ * Normalize tile file name to x-y.webp format
  * Handles different naming patterns:
- * - BDE: already in x-y.png format (13388-8325.png)
- * - NBE: in subdirectory structure (13275/8311.png -> 13275-8311.png)
+ * - BDE: already in x-y.png format (13388-8325.png) -> 13388-8325.webp
+ * - NBE: in subdirectory structure (13275/8311.png -> 13275-8311.webp)
  */
 async function normalizeTileFileName(originalFile, sourcePath, zoom) {
-  // If already in x-y.png format, use as is
+  // If already in x-y.png format, convert to x-y.webp
   if (originalFile.match(/^\d+-\d+\.png$/)) {
-    return originalFile;
+    return originalFile.replace(/\.png$/, ".webp");
   }
 
   // If it's just a number.png, we need to get the parent directory name
   if (originalFile.match(/^\d+\.png$/)) {
     const parentDir = path.basename(path.dirname(sourcePath));
-    return `${parentDir}-${originalFile}`;
+    return `${parentDir}-${originalFile.replace(/\.png$/, ".webp")}`;
   }
 
   // For any other format, try to extract numbers
   const numbers = originalFile.match(/\d+/g);
   if (numbers && numbers.length >= 2) {
-    return `${numbers[0]}-${numbers[1]}.png`;
+    return `${numbers[0]}-${numbers[1]}.webp`;
   }
 
-  // Fallback: use original filename
+  // Fallback: use original filename with .webp extension
   console.warn(`⚠️  Could not normalize filename: ${originalFile}`);
-  return originalFile;
+  return originalFile.replace(/\.png$/, ".webp");
 }
 
 // Run the script if called directly
@@ -241,7 +259,10 @@ if (require.main === module) {
     );
     console.log("");
     console.log(
-      "This script normalizes different estate folder structures to use consistent x-y.png format"
+      "This script normalizes different estate folder structures to use consistent x-y.webp format"
+    );
+    console.log(
+      "and converts PNG images to WebP lossless format during normalization"
     );
     process.exit(1);
   }
