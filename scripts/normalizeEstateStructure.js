@@ -3,9 +3,81 @@ const fs = require("fs-extra");
 const sharp = require("sharp");
 
 /**
+ * Convert tile X coordinate to longitude
+ */
+function tileXToLongitude(tileX, zoom) {
+  return (tileX / Math.pow(2, zoom)) * 360 - 180;
+}
+
+/**
+ * Convert tile Y coordinate to latitude
+ */
+function tileYToLatitude(tileY, zoom) {
+  const n = Math.PI - (2 * Math.PI * tileY) / Math.pow(2, zoom);
+  return (Math.atan(Math.sinh(n)) * 180) / Math.PI;
+}
+
+/**
+ * Calculate bounds from tile coordinates
+ */
+function calculateBoundsFromTiles(tileCoords) {
+  if (!tileCoords || tileCoords.length === 0) {
+    return null;
+  }
+
+  // Find min/max across all zoom levels
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+
+  for (const { x, y, zoom } of tileCoords) {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+
+  // Use the highest zoom level for more accurate bounds conversion
+  // Find the highest zoom level used
+  const maxZoom = Math.max(...tileCoords.map((coord) => coord.zoom));
+
+  // Convert to lat/lng
+  // SW corner: west edge (minX), south edge (maxY + 1)
+  // NE corner: east edge (maxX + 1), north edge (minY)
+  // Note: In tile coordinates, Y increases from north to south
+  const sw_lng = tileXToLongitude(minX, maxZoom); // West edge of leftmost tile
+  const sw_lat = tileYToLatitude(maxY + 1, maxZoom); // South edge of southernmost tile
+  const ne_lng = tileXToLongitude(maxX + 1, maxZoom); // East edge of rightmost tile
+  const ne_lat = tileYToLatitude(minY, maxZoom); // North edge of northernmost tile
+
+  return {
+    sw_lat,
+    sw_lng,
+    ne_lat,
+    ne_lng,
+  };
+}
+
+/**
+ * Extract tile coordinates from filename
+ */
+function extractTileCoords(filename) {
+  // Match x-y.webp, x-y.png, x-y.jpg, or x-y.jpeg format
+  const match = filename.match(/^(\d+)-(\d+)\.(webp|png|jpg|jpeg)$/i);
+  if (match) {
+    return {
+      x: parseInt(match[1], 10),
+      y: parseInt(match[2], 10),
+    };
+  }
+  return null;
+}
+
+/**
  * Normalizes estate folder structures to use consistent x-y.webp format
  * Handles both BDE (flat) and NBE (nested) structures
- * Converts PNG images to WebP lossless format during normalization
+ * Converts PNG, JPG, and JPEG images to WebP format during normalization
  */
 async function normalizeEstateStructure(estateDir, outputDir, estateName) {
   try {
@@ -74,6 +146,7 @@ async function normalizeEstateStructure(estateDir, outputDir, estateName) {
 
     let totalTilesProcessed = 0;
     let totalSize = 0;
+    const allTileCoords = []; // Collect all tile coordinates for bounds calculation
 
     // Process each zoom level
     for (const zoom of numericZoomLevels) {
@@ -87,7 +160,8 @@ async function normalizeEstateStructure(estateDir, outputDir, estateName) {
       const zoomStats = await processZoomLevel(
         sourceZoomDir,
         targetZoomDir,
-        zoom
+        zoom,
+        allTileCoords
       );
       totalTilesProcessed += zoomStats.tileCount;
       totalSize += zoomStats.totalSize;
@@ -110,6 +184,23 @@ async function normalizeEstateStructure(estateDir, outputDir, estateName) {
       metadata.normalizedAt = new Date().toISOString();
       metadata.totalTiles = totalTilesProcessed;
       metadata.sizeInBytes = totalSize;
+
+      // Calculate bounds from tiles if bounds is null
+      if (!metadata.bounds || metadata.bounds === null) {
+        if (allTileCoords.length > 0) {
+          const calculatedBounds = calculateBoundsFromTiles(allTileCoords);
+          if (calculatedBounds) {
+            metadata.bounds = calculatedBounds;
+            console.log(`📐 Calculated bounds from tiles:`, calculatedBounds);
+          } else {
+            console.log(`⚠️  Could not calculate bounds from tiles`);
+          }
+        } else {
+          console.log(`⚠️  No tiles found to calculate bounds`);
+        }
+      } else {
+        console.log(`📐 Using existing bounds from metadata`);
+      }
 
       const normalizedMetadataPath = path.join(
         normalizedEstateDir,
@@ -148,24 +239,32 @@ async function normalizeEstateStructure(estateDir, outputDir, estateName) {
 /**
  * Process tiles in a zoom level directory
  * Handles both flat (BDE) and nested (NBE) structures
- * Converts PNG files to WebP lossless format
+ * Converts PNG, JPG, and JPEG files to WebP format
  */
-async function processZoomLevel(sourceDir, targetDir, zoom) {
+async function processZoomLevel(sourceDir, targetDir, zoom, tileCoordsArray) {
   let tileCount = 0;
   let totalSize = 0;
 
-  // Recursively process all PNG files
-  await processDirectory(sourceDir, targetDir, zoom, (count, size) => {
-    tileCount += count;
-    totalSize += size;
-  });
+  // Recursively process all image files (PNG, JPG, JPEG)
+  await processDirectory(
+    sourceDir,
+    targetDir,
+    zoom,
+    (count, size, tileCoord) => {
+      tileCount += count;
+      totalSize += size;
+      if (tileCoord) {
+        tileCoordsArray.push(tileCoord);
+      }
+    }
+  );
 
   return { tileCount, totalSize };
 }
 
 /**
  * Recursively process directory and copy files with normalized names
- * Converts PNG files to WebP lossless format
+ * Converts PNG, JPG, and JPEG files to WebP format
  */
 async function processDirectory(sourceDir, targetDir, zoom, statsCallback) {
   const files = await fs.readdir(sourceDir);
@@ -179,19 +278,33 @@ async function processDirectory(sourceDir, targetDir, zoom, statsCallback) {
     if (stats.isDirectory()) {
       // Recursively process subdirectory
       await processDirectory(sourcePath, targetDir, zoom, statsCallback);
-    } else if (file.endsWith(".png")) {
-      // Process PNG file and convert to WebP
+    } else if (file.match(/\.(png|jpg|jpeg)$/i)) {
+      // Process image file (PNG, JPG, JPEG) and convert to WebP
       const normalizedFileName = await normalizeTileFileName(
         file,
         sourcePath,
         zoom
       );
-      // Change extension from .png to .webp
-      const webpFileName = normalizedFileName.replace(/\.png$/, ".webp");
+      // Change extension to .webp
+      const webpFileName = normalizedFileName.replace(
+        /\.(png|jpg|jpeg)$/i,
+        ".webp"
+      );
       const targetPath = path.join(targetDir, webpFileName);
 
+      // Extract tile coordinates for bounds calculation
+      let tileCoord = null;
+      const coords = extractTileCoords(webpFileName);
+      if (coords) {
+        tileCoord = {
+          x: coords.x,
+          y: coords.y,
+          zoom: zoom,
+        };
+      }
+
       try {
-        // Convert PNG to WebP lossless
+        // Convert image to WebP
         await sharp(sourcePath)
           .webp({ quality: 85, effort: 6, smartSubsample: true })
           .toFile(targetPath);
@@ -199,13 +312,14 @@ async function processDirectory(sourceDir, targetDir, zoom, statsCallback) {
         // Get the size of the converted file
         const convertedStats = await fs.stat(targetPath);
 
-        // Update stats
-        statsCallback(1, convertedStats.size);
+        // Update stats with tile coordinates
+        statsCallback(1, convertedStats.size, tileCoord);
       } catch (error) {
         console.error(`❌ Error converting ${file} to WebP:`, error);
-        // Fallback: copy original PNG file
+        // Fallback: copy original file (but rename extension to .webp)
+        // Note: This is not ideal but ensures processing continues
         await fs.copy(sourcePath, targetPath);
-        statsCallback(1, stats.size);
+        statsCallback(1, stats.size, tileCoord);
       }
     }
   }
@@ -214,19 +328,22 @@ async function processDirectory(sourceDir, targetDir, zoom, statsCallback) {
 /**
  * Normalize tile file name to x-y.webp format
  * Handles different naming patterns:
- * - BDE: already in x-y.png format (13388-8325.png) -> 13388-8325.webp
- * - NBE: in subdirectory structure (13275/8311.png -> 13275-8311.webp)
+ * - BDE: already in x-y format (13388-8325.png/jpg/jpeg) -> 13388-8325.webp
+ * - NBE: in subdirectory structure (13275/8311.png/jpg/jpeg -> 13275-8311.webp)
  */
 async function normalizeTileFileName(originalFile, sourcePath, zoom) {
-  // If already in x-y.png format, convert to x-y.webp
-  if (originalFile.match(/^\d+-\d+\.png$/)) {
-    return originalFile.replace(/\.png$/, ".webp");
+  // If already in x-y format (with any image extension), convert to x-y.webp
+  if (originalFile.match(/^\d+-\d+\.(png|jpg|jpeg)$/i)) {
+    return originalFile.replace(/\.(png|jpg|jpeg)$/i, ".webp");
   }
 
-  // If it's just a number.png, we need to get the parent directory name
-  if (originalFile.match(/^\d+\.png$/)) {
+  // If it's just a number with image extension, we need to get the parent directory name
+  if (originalFile.match(/^\d+\.(png|jpg|jpeg)$/i)) {
     const parentDir = path.basename(path.dirname(sourcePath));
-    return `${parentDir}-${originalFile.replace(/\.png$/, ".webp")}`;
+    return `${parentDir}-${originalFile.replace(
+      /\.(png|jpg|jpeg)$/i,
+      ".webp"
+    )}`;
   }
 
   // For any other format, try to extract numbers
@@ -237,7 +354,7 @@ async function normalizeTileFileName(originalFile, sourcePath, zoom) {
 
   // Fallback: use original filename with .webp extension
   console.warn(`⚠️  Could not normalize filename: ${originalFile}`);
-  return originalFile.replace(/\.png$/, ".webp");
+  return originalFile.replace(/\.(png|jpg|jpeg)$/i, ".webp");
 }
 
 // Run the script if called directly
@@ -262,7 +379,7 @@ if (require.main === module) {
       "This script normalizes different estate folder structures to use consistent x-y.webp format"
     );
     console.log(
-      "and converts PNG images to WebP lossless format during normalization"
+      "and converts PNG, JPG, and JPEG images to WebP format during normalization"
     );
     process.exit(1);
   }
