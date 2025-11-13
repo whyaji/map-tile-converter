@@ -306,7 +306,16 @@ async function processDirectory(sourceDir, targetDir, zoom, statsCallback) {
       try {
         // Convert image to WebP
         await sharp(sourcePath)
-          .webp({ quality: 85, effort: 6, smartSubsample: true })
+          .resize(256, 256, {
+            fit: "fill",
+            kernel: sharp.kernel.lanczos3,
+            withoutEnlargement: true,
+          })
+          .webp({
+            quality: 80, // Or 80-90 depending on file size vs quality needs
+            effort: 6,
+            smartSubsample: true,
+          })
           .toFile(targetPath);
 
         // Get the size of the converted file
