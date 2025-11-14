@@ -1,0 +1,15 @@
+{
+  "name": "NATAI BARU ESTATE",
+  "estateAbbr": "NBE",
+  "estateId": 1,
+  "mapType": 1,
+  "bounds": {
+    "sw_lat": -2.63637729774991,
+    "sw_lng": 111.6273246642689969,
+    "ne_lat": -2.5662031031622701,
+    "ne_lng": 111.703655173249004
+  },
+  "minZoom": 14,
+  "maxZoom": 18,
+  "path": "map_regions/NBE_NATAI_BARU_ESTATE"
+}

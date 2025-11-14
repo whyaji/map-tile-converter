@@ -27,6 +27,152 @@ npm install
 mkdir -p assets/maps/{downloads,output,chunks,metadata}
 ```
 
+## Usage with QGIS
+
+### 1. Open QGIS and Add Raster Layer
+
+Layer → Add Layer → Raster → Select ECW file
+
+### 2. Change CRS to EPSG:3857
+
+Click the CRS indicator in the bottom right corner → Select Predefined CRS → Choose EPSG:3857
+
+### 3. Show Toolbox Window
+
+Processing → Toolbox
+
+### 4. Generate XYZ Tiles
+
+Toolbox → Raster tools → Generate XYZ tiles (directory)
+
+### 5. Setting Parameters for Generate XYZ
+
+1. **Extent**: Calculate from layer, select your map layer
+2. **Minimum zoom**: 14
+3. **Maximum zoom**: 18
+4. **DPI**: 300
+5. **Tile format**: PNG
+6. **Quality**: 100
+7. **Metatile size**: 20
+8. **Tile width**: 512
+9. **Tile height**: 512
+10. **Output directory**: Save to map tile folder or directly to the `raw` folder in this project
+
+### 6. Get the Boundary Data
+
+The boundary data should be formatted like this:
+
+```json
+{
+  "sw_lat": -2.63637729774991,
+  "sw_lng": 111.6273246642689969,
+  "ne_lat": -2.5662031031622701,
+  "ne_lng": 111.703655173249004
+}
+```
+
+#### If Extent is Already in EPSG:4326
+
+When the extent from layer is already in EPSG:4326 format like this:
+
+```
+'EXTENT': '111.829357767,111.846943329,-2.532341709,-2.513431308 [EPSG:4326]'
+```
+
+The format is: `sw_lng, ne_lng, sw_lat, ne_lat`
+
+#### If Extent is Not in EPSG:4326
+
+Follow these steps to convert:
+
+1. **Extract extent**: Toolbox → Layer tools → Extract Layer Extent → Set input layer to your map layer → Run
+2. **Export to EPSG:4326**: In Layers panel, right-click on extent layer → Export → Save Features As → Select path and filename → Set CRS to EPSG:4326 → OK
+3. **Get extent coordinates**: Double-click the new extent layer (or open Properties) → Information → Find the extent data under "Information from Provider":
+
+```
+Information from provider
+
+Storage: GPKG
+Encoding: UTF-8
+Geometry: Polygon (Polygon)
+Extent: 111.8293577672099985,-2.5323417093133700 : 111.8469433289100010,-2.5134313078873598
+Feature count: 1
+```
+
+The extent format is: `sw_lng, sw_lat : ne_lng, ne_lat`
+
+Example: `111.8293577672099985,-2.5323417093133700 : 111.8469433289100010,-2.5134313078873598`
+
+### 7. Create Raw Data Structure in Project
+
+#### Folder Structure
+
+The folder structure in the `raw` directory should be:
+
+```
+[ESTATE-NAME-FOLDER]
+├── map_regions
+│   └── [ESTATE-NAME-FOLDER]
+│       ├── 14
+│       ├── 15
+│       ├── 16
+│       ├── 17
+│       └── 18
+└── regions_metadata.json
+```
+
+**Example:**
+
+```
+NBE_NATAI_BARU_ESTATE
+├── map_regions
+│   └── NBE_NATAI_BARU_ESTATE
+│       ├── 14
+│       ├── 15
+│       ├── 16
+│       ├── 17
+│       └── 18
+└── regions_metadata.json
+```
+
+#### Create regions_metadata.json
+
+Check the data from `constant/downloadList.ts` and fill the bounds based on the boundary data extent:
+
+```json
+{
+  "name": "NATAI BARU ESTATE",
+  "estateAbbr": "NBE",
+  "estateId": 112,
+  "mapType": 1,
+  "bounds": {
+    "sw_lat": -2.63637729774991,
+    "sw_lng": 111.6273246642689969,
+    "ne_lat": -2.5662031031622701,
+    "ne_lng": 111.703655173249004
+  },
+  "minZoom": 14,
+  "maxZoom": 18,
+  "path": "map_regions/NBE_NATAI_BARU_ESTATE"
+}
+```
+
+### 8. Run the Processing Scripts
+
+Example for SYE (Suayap Estate):
+
+Open the terminal and run these commands:
+
+```bash
+# 1. Normalize estate structure and compress data
+node scripts/normalizeEstateStructure.js ./raw/SYE_SUAYAP_ESTATE ./normalized SYE_SUAYAP_ESTATE
+
+# 2. Process and create chunks
+node scripts/processNormalizedEstates.js SYE_SUAYAP_ESTATE ./normalized/SYE_SUAYAP_ESTATE
+```
+
+**Done!**
+
 ## Usage
 
 ### 1. Start the Express Server
