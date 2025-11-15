@@ -39,12 +39,7 @@ The folder structure in the `raw` directory should be:
 [ESTATE-NAME-FOLDER]
 ├── map_regions
 │   └── [ESTATE-NAME-FOLDER]
-│       ├── 14
-│       ├── 15
-│       ├── 16
-│       ├── 17
-│       └── 18
-└── regions_metadata.json
+└── region_metadata.json
 ```
 
 **Example:**
@@ -58,7 +53,7 @@ NBE_NATAI_BARU_ESTATE
 │       ├── 16
 │       ├── 17
 │       └── 18
-└── regions_metadata.json
+└── region_metadata.json
 ```
 
 ### 2. Open QGIS and Add Raster Layer
@@ -135,7 +130,7 @@ The extent format is: `sw_lng, sw_lat : ne_lng, ne_lat`
 
 Example: `111.8293577672099985,-2.5323417093133700 : 111.8469433289100010,-2.5134313078873598`
 
-#### 8. Update regions_metadata.json
+#### 8. Update region_metadata.json
 
 Check the data from `constant/downloadList.ts` and fill the bounds based on the boundary data extent:
 
