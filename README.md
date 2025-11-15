@@ -29,23 +29,55 @@ mkdir -p assets/maps/{downloads,output,chunks,metadata}
 
 ## Usage with QGIS
 
-### 1. Open QGIS and Add Raster Layer
+### 1. Create Raw Data Structure in Project
+
+#### Folder Structure
+
+The folder structure in the `raw` directory should be:
+
+```
+[ESTATE-NAME-FOLDER]
+├── map_regions
+│   └── [ESTATE-NAME-FOLDER]
+│       ├── 14
+│       ├── 15
+│       ├── 16
+│       ├── 17
+│       └── 18
+└── regions_metadata.json
+```
+
+**Example:**
+
+```
+NBE_NATAI_BARU_ESTATE
+├── map_regions
+│   └── NBE_NATAI_BARU_ESTATE
+│       ├── 14
+│       ├── 15
+│       ├── 16
+│       ├── 17
+│       └── 18
+└── regions_metadata.json
+```
+
+### 2. Open QGIS and Add Raster Layer
 
 Layer → Add Layer → Raster → Select ECW file
 
-### 2. Change CRS to EPSG:3857
+### 3. Change CRS to EPSG:3857
 
 Click the CRS indicator in the bottom right corner → Select Predefined CRS → Choose EPSG:3857
 
-### 3. Show Toolbox Window
+### 4. Show Toolbox Window
 
 Processing → Toolbox
 
-### 4. Generate XYZ Tiles
+### 5. Generate XYZ Tiles
 
 Toolbox → Raster tools → Generate XYZ tiles (directory)
 
-### 5. Setting Parameters for Generate XYZ
+### 6. Setting Parameters for Generate XYZ
 
 1. **Extent**: Calculate from layer, select your map layer
 2. **Minimum zoom**: 14
@@ -58,7 +90,7 @@ Toolbox → Raster tools → Generate XYZ tiles (directory)
 9. **Tile height**: 512
 10. **Output directory**: Save to map tile folder or directly to the `raw` folder in this project
 
-### 6. Get the Boundary Data
+### 7. Get the Boundary Data
 
 The boundary data should be formatted like this:
 
@@ -103,39 +135,7 @@ The extent format is: `sw_lng, sw_lat : ne_lng, ne_lat`
 
 Example: `111.8293577672099985,-2.5323417093133700 : 111.8469433289100010,-2.5134313078873598`
 
-### 7. Create Raw Data Structure in Project
-
-#### Folder Structure
-
-The folder structure in the `raw` directory should be:
-
-```
-[ESTATE-NAME-FOLDER]
-├── map_regions
-│   └── [ESTATE-NAME-FOLDER]
-│       ├── 14
-│       ├── 15
-│       ├── 16
-│       ├── 17
-│       └── 18
-└── regions_metadata.json
-```
-
-**Example:**
-
-```
-NBE_NATAI_BARU_ESTATE
-├── map_regions
-│   └── NBE_NATAI_BARU_ESTATE
-│       ├── 14
-│       ├── 15
-│       ├── 16
-│       ├── 17
-│       └── 18
-└── regions_metadata.json
-```
-
-#### Create regions_metadata.json
+#### 8. Update regions_metadata.json
 
 Check the data from `constant/downloadList.ts` and fill the bounds based on the boundary data extent:
 
@@ -157,7 +157,7 @@ Check the data from `constant/downloadList.ts` and fill the bounds based on the 
 }
 ```
 
-### 8. Run the Processing Scripts
+### 9. Run the Processing Scripts
 
 Example for SYE (Suayap Estate):
 
@@ -169,6 +169,12 @@ node scripts/normalizeEstateStructure.js ./raw/SYE_SUAYAP_ESTATE ./normalized SY
 
 # 2. Process and create chunks
 node scripts/processNormalizedEstates.js SYE_SUAYAP_ESTATE ./normalized/SYE_SUAYAP_ESTATE
+```
+
+Or run the interactive helper to pick an estate from the `./raw` directory and execute both steps automatically:
+
+```bash
+node scripts/runProgram.js
 ```
 
 **Done!**
